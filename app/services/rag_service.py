@@ -77,14 +77,25 @@ class RAGService:
         # 1. Search Pinecone (product info)
         if self.pinecone and url:
             try:
-                pinecone_results = self.pinecone.search_by_url(url, top_k=5)
-                context['pinecone_results'] = pinecone_results
+                # Check if multiple URLs (comma-separated)
+                if ',' in url:
+                    # Use multiple URL search
+                    pinecone_results = self.pinecone.search_by_multiple_urls(
+                        urls=url,
+                        top_k_per_url=3,
+                        total_top_k=5
+                    )
+                    context['pinecone_results'] = pinecone_results
+                else:
+                    # Single URL search
+                    pinecone_results = self.pinecone.search_by_url(url, top_k=5)
+                    context['pinecone_results'] = pinecone_results
 
                 # Also search by keywords if decided is provided
                 if decided:
                     keyword_results = self.pinecone.search_by_keywords(decided, top_k=3)
                     # Merge unique results
-                    existing_ids = {r['id'] for r in pinecone_results}
+                    existing_ids = {r['id'] for r in context['pinecone_results']}
                     for result in keyword_results:
                         if result['id'] not in existing_ids:
                             context['pinecone_results'].append(result)

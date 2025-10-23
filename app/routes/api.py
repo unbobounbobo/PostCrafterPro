@@ -28,7 +28,8 @@ def initialize_context():
     Request:
         {
             "date": "2025-01-15",
-            "url": "https://ec.midori-anzen.com/shop/...",
+            "url": "https://ec.midori-anzen.com/shop/g/g1234567",  # Single URL
+            # or "url": "https://ec.midori-anzen.com/shop/g/g1234567, https://ec.midori-anzen.com/shop/g/g7654321",  # Multiple URLs
             "decided": "防災の日にヘルメットをPRする",
             "anniversary": "防災の日",
             "remarks": "補足事項"
@@ -49,6 +50,8 @@ def initialize_context():
 
         # Get comprehensive context (including X Analytics insights)
         # URL is optional - if not provided, only similar posts will be searched
+        # Supports multiple URLs (comma-separated): "url1, url2, url3"
+        # Multiple URLs will be automatically detected and processed by RAGService
         context = rag_service.get_comprehensive_context(
             url=data.get('url') or None,
             decided=data.get('decided'),

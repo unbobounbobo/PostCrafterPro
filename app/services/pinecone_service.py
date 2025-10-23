@@ -117,6 +117,56 @@ class PineconeService:
             print(f"Error in Pinecone search by URL: {e}")
             return []
 
+    def search_by_multiple_urls(self, urls, top_k_per_url=3, total_top_k=5):
+        """
+        Search for product information by multiple URLs
+
+        Args:
+            urls: List of product URLs or comma-separated string
+            top_k_per_url: Number of results per URL
+            total_top_k: Total number of results to return after merging
+
+        Returns:
+            list: List of relevant product information (deduplicated and sorted by score)
+        """
+        # Parse URLs if comma-separated string
+        if isinstance(urls, str):
+            url_list = [url.strip() for url in urls.split(',') if url.strip()]
+        else:
+            url_list = urls
+
+        if not url_list:
+            return []
+
+        print(f"[INFO] Searching Pinecone for {len(url_list)} URLs...")
+
+        all_results = []
+        seen_ids = set()
+
+        # Search each URL
+        for url in url_list:
+            try:
+                results = self.search_by_url(url, top_k=top_k_per_url)
+
+                # Add unique results
+                for result in results:
+                    if result['id'] not in seen_ids:
+                        all_results.append(result)
+                        seen_ids.add(result['id'])
+
+            except Exception as e:
+                print(f"[WARN] Error searching URL {url}: {e}")
+                continue
+
+        # Sort by score (descending)
+        all_results.sort(key=lambda x: x['score'], reverse=True)
+
+        # Return top K results
+        final_results = all_results[:total_top_k]
+        print(f"[OK] Found {len(final_results)} unique products from {len(url_list)} URLs")
+
+        return final_results
+
     def search_by_keywords(self, keywords, top_k=5):
         """
         Search for information by keywords
