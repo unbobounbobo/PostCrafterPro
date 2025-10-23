@@ -44,14 +44,13 @@ def initialize_context():
         data = request.get_json()
 
         # Validate required fields
-        if not data.get('url'):
-            return jsonify({'error': 'URLは必須です'}), 400
         if not data.get('decided'):
             return jsonify({'error': '決定事項は必須です'}), 400
 
         # Get comprehensive context (including X Analytics insights)
+        # URL is optional - if not provided, only similar posts will be searched
         context = rag_service.get_comprehensive_context(
-            url=data.get('url'),
+            url=data.get('url') or None,
             decided=data.get('decided'),
             anniversary=data.get('anniversary')
         )
