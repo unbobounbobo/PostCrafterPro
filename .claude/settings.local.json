@@ -4,7 +4,10 @@
       "Read(//c/Users/yuuik/**)",
       "Bash(python:*)",
       "Bash(git branch:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$(cat <<''EOF''\nInitial commit: PostCrafterPro - SNS投稿作成支援ツール\n\n主な機能:\n- Claude 4.5とPinecone RAGによる投稿生成\n- Tinder方式UIで2つの案を比較選択\n- Google Sheets連携（下書き・完成シート自動保存）\n- バッチ処理機能（複数投稿の一括生成）\n- Flatpickr日本語カレンダー（月曜始まり）\n- プロンプトカスタマイズ設定画面\n\n技術スタック:\n- Backend: Flask 3.0\n- AI: Claude 4.5 Sonnet (Extended Thinking)\n- RAG: Pinecone Serverless\n- Frontend: Alpine.js + Tailwind CSS\n- Calendar: Flatpickr (日本語・月曜始まり)\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")",
+      "Bash(git commit:*)",
+      "Bash(git push:*)"
     ]
   },
   "enableAllProjectMcpServers": true,

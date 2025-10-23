@@ -263,6 +263,24 @@ class ClaudeService:
         print(f"[INFO] プロンプト構築完了")
         conversation = [{"role": "user", "content": message}]
 
+        # Define tools (same as initial generation)
+        tools = [
+            {
+                "name": "tweet_length_checker",
+                "description": "API to check if a given text meets Twitter's length requirements",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "text": {
+                            "type": "string",
+                            "description": "The text to be checked for Twitter length requirements"
+                        }
+                    },
+                    "required": ["text"]
+                }
+            }
+        ]
+
         # Result container
         result = {
             "post_a": None,
@@ -271,27 +289,80 @@ class ClaudeService:
         }
 
         try:
-            print(f"[INFO] Claude API リクエスト送信中...")
-            # Request JSON output via system prompt
-            response = self.client.messages.create(
-                model=self.model,
-                max_tokens=8000,
-                temperature=1,
-                system=self.prompt_service.get_system_prompt('refinement'),
-                messages=conversation
-            )
+            print(f"[INFO] Claude API リクエスト送信中（ツール使用可能）...")
 
-            print(f"[INFO] Claude API レスポンス受信完了")
-            print(f"[DEBUG] レスポンス詳細:")
-            print(f"   - stop_reason: {response.stop_reason}")
-            print(f"   - content blocks: {len(response.content)}")
-            for i, block in enumerate(response.content):
-                print(f"   - block[{i}]: type={getattr(block, 'type', 'unknown')}, length={len(getattr(block, 'text', '')) if hasattr(block, 'text') else 0}")
-                if hasattr(block, 'text'):
-                    print(f"      preview: {block.text[:200]}...")
+            # Conversation loop (max 5 turns for refinement)
+            max_turns = 5
+            current_turn = 0
 
-            # Parse structured output
-            self._parse_structured_output(response, result)
+            while current_turn < max_turns:
+                current_turn += 1
+                print(f"\n{'='*60}")
+                print(f"改善ターン {current_turn}/{max_turns}")
+                print(f"{'='*60}")
+
+                # Force final output after turn 3
+                if current_turn >= 3:
+                    print(f"\n⚠️  [警告] ターン数が3に到達 - 強制的に最終出力を要求します")
+                    conversation.append({
+                        "role": "user",
+                        "content": "これまでの検討に基づいて、2つの改善案を出力してください。"
+                    })
+
+                    print(f"[INFO] 構造化出力リクエスト送信中...")
+                    final_response = self.client.messages.create(
+                        model=self.model,
+                        max_tokens=8000,
+                        temperature=1,
+                        system=self.prompt_service.get_system_prompt('refinement'),
+                        messages=conversation
+                    )
+
+                    print(f"[INFO] 構造化出力レスポンス受信完了")
+                    self._parse_structured_output(final_response, result)
+                    break
+
+                # Regular API request with tools
+                response = self.client.messages.create(
+                    model=self.model,
+                    max_tokens=8000,
+                    temperature=1,
+                    system=self.prompt_service.get_system_prompt('refinement'),
+                    messages=conversation,
+                    tools=tools
+                )
+
+                # Add response to conversation
+                conversation.append({"role": "assistant", "content": response.content})
+
+                # Check if conversation is complete
+                if response.stop_reason != "tool_use":
+                    print(f"\n✅ [完了] Claude応答完了 (stop_reason: {response.stop_reason})")
+                    print(f"[INFO] 最終改善案の構造化出力を要求します")
+
+                    # Request structured output for final posts
+                    conversation.append({
+                        "role": "user",
+                        "content": "2つの改善案を出力してください。"
+                    })
+
+                    print(f"[INFO] 構造化出力リクエスト送信中...")
+                    final_response = self.client.messages.create(
+                        model=self.model,
+                        max_tokens=8000,
+                        temperature=1,
+                        system=self.prompt_service.get_system_prompt('refinement'),
+                        messages=conversation
+                    )
+
+                    print(f"[INFO] 構造化出力レスポンス受信完了")
+                    self._parse_structured_output(final_response, result)
+                    break
+
+                # Process tool use
+                tool_outputs = self._process_tool_use(response)
+                if tool_outputs:
+                    conversation.append({"role": "user", "content": tool_outputs})
 
             print(f"\n{'🟠'*30}")
             print(f"[SUCCESS] 投稿改善完了")
