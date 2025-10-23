@@ -793,3 +793,151 @@ class ClaudeService:
                         })
 
         return tool_outputs
+
+    def refine_emojis(self, original_text, emoji_guidelines):
+        """
+        Refine emoji usage in post based on X Analytics performance data
+
+        Args:
+            original_text: Original post text
+            emoji_guidelines: Emoji guidelines from AnalyticsService.get_emoji_guidelines()
+
+        Returns:
+            dict: {
+                'original': str,
+                'improved': str,
+                'changes': [{'from': '💙', 'to': '🚨', 'reason': '...'}],
+                'character_count': int,
+                'is_valid': bool
+            }
+        """
+        print(f"\n[INFO] 絵文字改善プロセス開始...")
+        print(f"   元テキスト長: {len(original_text)}文字")
+
+        # Build prompt with guidelines
+        guidelines_text = emoji_guidelines.get('guidelines_text', '')
+
+        system_prompt = f"""あなたはX（旧Twitter）の絵文字最適化エキスパートです。
+
+{guidelines_text}
+
+【タスク】
+与えられた投稿の絵文字を、X Analyticsの実績データに基づいて最適化してください。
+
+【ルール】
+1. 投稿の**意味や文脈は変えない**（絵文字のみ変更）
+2. 1投稿あたり絵文字は2-4個まで
+3. 高エンゲージメント絵文字に置き換える
+4. 低エンゲージメント絵文字は削除または置き換え
+5. 絵文字は文脈に自然に溶け込むように配置
+6. 文字数制限（280文字）を超えないようにする
+
+【出力形式】
+JSONで以下の形式で出力:
+{{
+  "improved_text": "改善後の投稿テキスト",
+  "changes": [
+    {{"from": "元の絵文字", "to": "新しい絵文字", "reason": "変更理由"}}
+  ],
+  "reasoning": "改善の意図と期待される効果"
+}}"""
+
+        user_message = f"""以下の投稿の絵文字を最適化してください：
+
+【元の投稿】
+{original_text}
+
+X Analyticsデータに基づいて、エンゲージメント率が高まるように絵文字を改善してください。"""
+
+        try:
+            # Call Claude API
+            response = self.client.messages.create(
+                model=self.model,
+                max_tokens=4000,
+                temperature=0.7,
+                system=system_prompt,
+                messages=[{"role": "user", "content": user_message}]
+            )
+
+            # Parse response
+            result_text = ""
+            for block in response.content:
+                if block.type == "text":
+                    result_text += block.text
+
+            print(f"[DEBUG] Claude応答: {result_text[:200]}...")
+
+            # Extract JSON
+            json_match = re.search(r'\{[\s\S]*"improved_text"[\s\S]*\}', result_text)
+            if json_match:
+                result_json = json.loads(json_match.group())
+
+                improved_text = result_json.get('improved_text', original_text)
+                changes = result_json.get('changes', [])
+                reasoning = result_json.get('reasoning', '')
+
+                # Check character count with tweet_length_checker
+                char_count, is_valid = self._check_tweet_length(improved_text)
+
+                print(f"[OK] 絵文字改善完了")
+                print(f"   改善後文字数: {char_count}文字")
+                print(f"   変更箇所: {len(changes)}件")
+
+                return {
+                    'original': original_text,
+                    'improved': improved_text,
+                    'changes': changes,
+                    'reasoning': reasoning,
+                    'character_count': char_count,
+                    'is_valid': is_valid
+                }
+
+            else:
+                print(f"[WARN]  JSON抽出失敗、元テキストを返却")
+                char_count, is_valid = self._check_tweet_length(original_text)
+                return {
+                    'original': original_text,
+                    'improved': original_text,
+                    'changes': [],
+                    'reasoning': 'JSON解析に失敗しました',
+                    'character_count': char_count,
+                    'is_valid': is_valid
+                }
+
+        except Exception as e:
+            print(f"[ERROR] 絵文字改善エラー: {e}")
+            import traceback
+            traceback.print_exc()
+
+            char_count, is_valid = self._check_tweet_length(original_text)
+            return {
+                'original': original_text,
+                'improved': original_text,
+                'changes': [],
+                'reasoning': f'エラー: {str(e)}',
+                'character_count': char_count,
+                'is_valid': is_valid,
+                'error': str(e)
+            }
+
+    def _check_tweet_length(self, text):
+        """
+        Check tweet length using tweet_length_checker API
+
+        Args:
+            text: Text to check
+
+        Returns:
+            tuple: (character_count, is_valid)
+        """
+        try:
+            response = requests.post(
+                self.tweet_checker_url,
+                json={"text": text},
+                timeout=10
+            )
+            data = response.json()
+            return data.get('weightedLength', len(text)), data.get('isValid', len(text) <= 280)
+        except Exception as e:
+            print(f"[WARN] Tweet length check failed: {e}")
+            return len(text), len(text) <= 280

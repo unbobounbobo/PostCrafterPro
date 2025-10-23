@@ -482,3 +482,67 @@ def prepare_sheet_data(data):
     sheet_data['類似投稿数'] = len(data.get('similar_posts', []))
 
     return sheet_data
+
+
+@api_bp.route('/refine-emojis', methods=['POST'])
+def refine_emojis():
+    """
+    絵文字改善エンドポイント
+
+    X Analyticsの実績データに基づいて、投稿の絵文字を最適化します。
+
+    Request:
+        {
+            "text": "防災の日💙に備えましょう。ヘルメット⛑️で命を守ります。"
+        }
+
+    Response:
+        {
+            "original": "元のテキスト",
+            "improved": "改善後のテキスト",
+            "changes": [
+                {"from": "💙", "to": "🚨", "reason": "防災投稿で+35%のER実績"}
+            ],
+            "reasoning": "改善の意図と期待される効果",
+            "character_count": 123,
+            "is_valid": true
+        }
+    """
+    try:
+        print(f"\n{'🎨'*30}")
+        print(f"[API] /api/refine-emojis リクエスト受信")
+
+        data = request.get_json()
+        text = data.get('text', '')
+
+        if not text:
+            return jsonify({'error': 'テキストは必須です'}), 400
+
+        print(f"   元テキスト: {text[:100]}...")
+
+        # Get emoji guidelines from X Analytics
+        print(f"\n[INFO] X Analyticsから絵文字ガイドラインを取得中...")
+        from app.services.analytics_service import AnalyticsService
+        analytics = AnalyticsService()
+        emoji_guidelines = analytics.get_emoji_guidelines(min_occurrences=3, top_n=15)
+
+        print(f"   推奨絵文字: {len(emoji_guidelines.get('recommended', []))}種類")
+        print(f"   非推奨絵文字: {len(emoji_guidelines.get('avoid', []))}種類")
+
+        # Refine emojis with Claude
+        print(f"\n[INFO] Claude APIで絵文字を最適化中...")
+        result = claude_service.refine_emojis(text, emoji_guidelines)
+
+        print(f"\n{'🎨'*30}")
+        print(f"[API] 絵文字改善完了")
+        print(f"   元: {result['original'][:50]}...")
+        print(f"   改善後: {result['improved'][:50]}...")
+        print(f"   変更数: {len(result.get('changes', []))}件")
+        print(f"{'🎨'*30}\n")
+
+        return jsonify(result), 200
+
+    except Exception as e:
+        print(f"\n❌ [エラー] /api/refine-emojis でエラー: {str(e)}")
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500

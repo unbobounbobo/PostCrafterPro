@@ -4,6 +4,8 @@ Analyze past tweet performance to inform new post creation
 """
 from app.services.sheets_service import SheetsService
 import statistics
+import re
+from collections import defaultdict
 
 
 class AnalyticsService:
@@ -391,3 +393,232 @@ class AnalyticsService:
                 context_parts.append(f"   {post['text'][:120]}")
 
         return "\n".join(context_parts)
+
+    def _extract_emojis(self, text):
+        """
+        Extract all emojis from text
+
+        Args:
+            text: Text to extract emojis from
+
+        Returns:
+            list: List of emojis found in text
+        """
+        if not text:
+            return []
+
+        # Unicode emoji ranges
+        emoji_pattern = re.compile(
+            "["
+            "\U0001F600-\U0001F64F"  # emoticons
+            "\U0001F300-\U0001F5FF"  # symbols & pictographs
+            "\U0001F680-\U0001F6FF"  # transport & map symbols
+            "\U0001F1E0-\U0001F1FF"  # flags (iOS)
+            "\U00002702-\U000027B0"  # dingbats
+            "\U000024C2-\U0001F251"  # enclosed characters
+            "\U0001F900-\U0001F9FF"  # supplemental symbols
+            "\U0001FA00-\U0001FA6F"  # extended symbols
+            "\U00002600-\U000026FF"  # miscellaneous symbols
+            "]+",
+            flags=re.UNICODE
+        )
+
+        emojis = emoji_pattern.findall(text)
+        return emojis
+
+    def analyze_emoji_performance(self, min_occurrences=5):
+        """
+        Analyze emoji performance based on X Analytics data
+
+        Args:
+            min_occurrences: Minimum number of times an emoji must appear to be included
+
+        Returns:
+            dict: {
+                'top_emojis': [(emoji, avg_engagement_rate, count), ...],
+                'low_emojis': [(emoji, avg_engagement_rate, count), ...],
+                'emoji_stats': {emoji: {'avg_er': float, 'count': int, 'total_er': float}}
+            }
+        """
+        print(f"\n[INFO] 絵文字パフォーマンス分析を開始...")
+        print(f"   分析対象: {len(self.tweet_data)}件の投稿")
+
+        if not self.tweet_data:
+            print(f"[WARN]  分析データがありません")
+            return {'top_emojis': [], 'low_emojis': [], 'emoji_stats': {}}
+
+        # Collect emoji usage with engagement rates
+        emoji_data = defaultdict(lambda: {'total_er': 0, 'count': 0, 'posts': []})
+
+        for post in self.tweet_data:
+            text = post.get('ツイート本文', '')
+            if not text:
+                continue
+
+            # Get engagement rate
+            try:
+                engagement_rate = float(post.get('エンゲージメント率', 0))
+            except (ValueError, TypeError):
+                continue
+
+            if engagement_rate == 0:
+                continue
+
+            # Extract emojis
+            emojis = self._extract_emojis(text)
+
+            # Record each emoji's performance
+            for emoji in set(emojis):  # Use set to avoid duplicates in same post
+                emoji_data[emoji]['total_er'] += engagement_rate
+                emoji_data[emoji]['count'] += 1
+                emoji_data[emoji]['posts'].append({
+                    'text': text[:100],
+                    'er': engagement_rate
+                })
+
+        print(f"[INFO] 発見した絵文字の種類: {len(emoji_data)}種類")
+
+        # Calculate average engagement rate for each emoji
+        emoji_stats = {}
+        for emoji, data in emoji_data.items():
+            if data['count'] >= min_occurrences:
+                avg_er = data['total_er'] / data['count']
+                emoji_stats[emoji] = {
+                    'avg_er': avg_er,
+                    'count': data['count'],
+                    'total_er': data['total_er']
+                }
+
+        print(f"[INFO] 最低出現回数{min_occurrences}回以上の絵文字: {len(emoji_stats)}種類")
+
+        if not emoji_stats:
+            print(f"[WARN]  統計的に有意な絵文字データがありません")
+            return {'top_emojis': [], 'low_emojis': [], 'emoji_stats': {}}
+
+        # Sort by average engagement rate
+        sorted_emojis = sorted(
+            emoji_stats.items(),
+            key=lambda x: x[1]['avg_er'],
+            reverse=True
+        )
+
+        # Calculate median for threshold
+        median_er = statistics.median([data['avg_er'] for data in emoji_stats.values()])
+        print(f"[INFO] 絵文字使用時の中央エンゲージメント率: {median_er:.4f}")
+
+        # Top and low performers
+        top_emojis = [
+            (emoji, data['avg_er'], data['count'])
+            for emoji, data in sorted_emojis
+            if data['avg_er'] > median_er
+        ][:20]  # Top 20
+
+        low_emojis = [
+            (emoji, data['avg_er'], data['count'])
+            for emoji, data in sorted_emojis
+            if data['avg_er'] < median_er * 0.8  # 20% below median
+        ][:20]  # Bottom 20
+
+        print(f"[OK] 高パフォーマンス絵文字: {len(top_emojis)}種類")
+        print(f"[OK] 低パフォーマンス絵文字: {len(low_emojis)}種類")
+
+        return {
+            'top_emojis': top_emojis,
+            'low_emojis': low_emojis,
+            'emoji_stats': emoji_stats,
+            'median_er': median_er
+        }
+
+    def get_emoji_guidelines(self, min_occurrences=5, top_n=15):
+        """
+        Generate emoji usage guidelines based on X Analytics performance
+
+        Args:
+            min_occurrences: Minimum number of times an emoji must appear
+            top_n: Number of top emojis to include in recommendations
+
+        Returns:
+            dict: {
+                'recommended': [
+                    {'emoji': '🚨', 'avg_er': 0.0456, 'count': 23, 'boost': '+35%'},
+                    ...
+                ],
+                'avoid': [
+                    {'emoji': '💙', 'avg_er': 0.0234, 'count': 12, 'impact': '-15%'},
+                    ...
+                ],
+                'guidelines_text': str  # Formatted text for Claude prompt
+            }
+        """
+        print(f"\n[INFO] 絵文字ガイドライン生成中...")
+
+        # Analyze performance
+        analysis = self.analyze_emoji_performance(min_occurrences=min_occurrences)
+
+        if not analysis['emoji_stats']:
+            return {
+                'recommended': [],
+                'avoid': [],
+                'guidelines_text': '※ 絵文字パフォーマンスデータが不足しています'
+            }
+
+        median_er = analysis.get('median_er', 0)
+        top_emojis = analysis['top_emojis'][:top_n]
+        low_emojis = analysis['low_emojis'][:10]  # Top 10 to avoid
+
+        # Format recommendations
+        recommended = []
+        for emoji, avg_er, count in top_emojis:
+            boost = ((avg_er / median_er) - 1) * 100 if median_er > 0 else 0
+            recommended.append({
+                'emoji': emoji,
+                'avg_er': avg_er,
+                'count': count,
+                'boost': f"+{boost:.0f}%"
+            })
+
+        # Format avoid list
+        avoid = []
+        for emoji, avg_er, count in low_emojis:
+            impact = ((avg_er / median_er) - 1) * 100 if median_er > 0 else 0
+            avoid.append({
+                'emoji': emoji,
+                'avg_er': avg_er,
+                'count': count,
+                'impact': f"{impact:.0f}%"
+            })
+
+        # Generate guidelines text for Claude prompt
+        guidelines_parts = []
+        guidelines_parts.append("【X実績に基づく絵文字ガイドライン】")
+        guidelines_parts.append("")
+        guidelines_parts.append("《高エンゲージメント絵文字 - 積極的に使用推奨》")
+        for item in recommended[:10]:
+            guidelines_parts.append(
+                f"  {item['emoji']} (ER: {item['avg_er']:.4f}, {item['count']}回使用, "
+                f"平均比{item['boost']})"
+            )
+
+        guidelines_parts.append("")
+        guidelines_parts.append("《低エンゲージメント絵文字 - 使用を避ける》")
+        for item in avoid[:5]:
+            guidelines_parts.append(
+                f"  {item['emoji']} (ER: {item['avg_er']:.4f}, {item['count']}回使用, "
+                f"平均比{item['impact']})"
+            )
+
+        guidelines_parts.append("")
+        guidelines_parts.append(f"※ 分析データ: {len(self.tweet_data)}件の投稿")
+        guidelines_parts.append(f"※ 最低出現回数: {min_occurrences}回")
+
+        guidelines_text = "\n".join(guidelines_parts)
+
+        print(f"[OK] ガイドライン生成完了")
+        print(f"   推奨絵文字: {len(recommended)}種類")
+        print(f"   非推奨絵文字: {len(avoid)}種類")
+
+        return {
+            'recommended': recommended,
+            'avoid': avoid,
+            'guidelines_text': guidelines_text
+        }
