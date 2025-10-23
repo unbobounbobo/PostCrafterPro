@@ -491,6 +491,59 @@ function postCreator() {
             if (!dateString) return '';
             const date = new Date(dateString);
             return date.toLocaleDateString('ja-JP');
+        },
+
+        // Copy text to clipboard
+        async copyToClipboard(text) {
+            try {
+                await navigator.clipboard.writeText(text);
+                this.showCopyNotification();
+            } catch (err) {
+                console.error('Failed to copy:', err);
+                // Fallback for older browsers
+                this.copyToClipboardFallback(text);
+            }
+        },
+
+        // Fallback copy method for older browsers
+        copyToClipboardFallback(text) {
+            const textarea = document.createElement('textarea');
+            textarea.value = text;
+            textarea.style.position = 'fixed';
+            textarea.style.opacity = '0';
+            document.body.appendChild(textarea);
+            textarea.select();
+            try {
+                document.execCommand('copy');
+                this.showCopyNotification();
+            } catch (err) {
+                console.error('Fallback copy failed:', err);
+                alert('コピーに失敗しました');
+            }
+            document.body.removeChild(textarea);
+        },
+
+        // Show copy success notification
+        showCopyNotification() {
+            // Create notification element
+            const notification = document.createElement('div');
+            notification.className = 'fixed bottom-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg flex items-center space-x-2 z-50 animate-fade-in';
+            notification.innerHTML = `
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                </svg>
+                <span>コピーしました！</span>
+            `;
+            document.body.appendChild(notification);
+
+            // Remove after 2 seconds
+            setTimeout(() => {
+                notification.style.opacity = '0';
+                notification.style.transition = 'opacity 0.3s';
+                setTimeout(() => {
+                    document.body.removeChild(notification);
+                }, 300);
+            }, 2000);
         }
     };
 }
