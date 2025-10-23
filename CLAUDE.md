@@ -390,6 +390,31 @@ tweet_length_checkerツールが正しく設定されているか確認してく
 
 ## 📊 開発履歴
 
+### 2025-01-23: 最終投稿表示バグ修正（Step 7画面）
+
+**問題:**
+- 最終確認画面（Step 7）で投稿テキストが`[object Object]`と表示される
+- クリックコピー機能が動作しない
+
+**原因:**
+- `finalPost`オブジェクト全体を`x-text`でバインドしていた
+- オブジェクトを文字列化すると`[object Object]`になる
+
+**修正内容:**
+- `templates/index.html` Line 101-102を修正
+- `x-text="finalPost"` → `x-text="finalPost?.text || ''"`
+- `@click="copyToClipboard(finalPost)"` → `@click="copyToClipboard(finalPost?.text || '')"`
+- Optional Chaining (`?.`) で安全なプロパティアクセス
+
+**結果:**
+- 最終投稿テキストが正しく表示される
+- クリックコピーが正常に動作
+- エラー耐性が向上
+
+**コミット:** `b3b1998`
+
+---
+
 ### 2025-01-23: X Analytics絵文字最適化機能（バックエンド実装）
 
 **実装内容:**
