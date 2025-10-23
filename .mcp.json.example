@@ -1,0 +1,56 @@
+{
+  "mcpServers": {
+    "firecrawl": {
+      "type": "stdio",
+      "command": "node",
+      "args": [
+        "path/to/firecrawl/dist/index.js"
+      ],
+      "env": {
+        "FIRECRAWL_API_KEY": "your-firecrawl-api-key-here"
+      }
+    },
+    "perplexity-ask": {
+      "type": "stdio",
+      "command": "cmd",
+      "args": [
+        "/c",
+        "npx",
+        "-y",
+        "server-perplexity-ask"
+      ],
+      "env": {
+        "PERPLEXITY_API_KEY": "your-perplexity-api-key-here"
+      }
+    },
+    "tavily-remote": {
+      "type": "stdio",
+      "command": "cmd",
+      "args": [
+        "/c",
+        "npx",
+        "-y",
+        "mcp-remote",
+        "https://mcp.tavily.com/mcp/?tavilyApiKey=your-tavily-api-key-here"
+      ]
+    },
+    "perplexity-search": {
+      "type": "stdio",
+      "command": "python",
+      "args": [
+        "path/to/perplexity-search-api-mcp-server/perplexity_mcp/server.py"
+      ],
+      "cwd": "path/to/perplexity-search-api-mcp-server",
+      "env": {
+        "PERPLEXITY_API_KEY": "your-perplexity-api-key-here"
+      }
+    },
+    "mcp-sample": {
+      "type": "stdio",
+      "command": "python",
+      "args": [
+        "path/to/MCP-sample/calculator.py"
+      ]
+    }
+  }
+}

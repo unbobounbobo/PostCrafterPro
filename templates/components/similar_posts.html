@@ -1,0 +1,33 @@
+<div class="bg-white rounded-lg shadow p-6" x-show="similarPosts.length > 0">
+    <h2 class="text-xl font-semibold text-gray-900 mb-4 flex items-center">
+        <svg class="w-6 h-6 mr-2 text-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+        </svg>
+        過去の類似投稿
+    </h2>
+
+    <div class="space-y-3">
+        <template x-for="(post, index) in similarPosts.slice(0, 3)" :key="index">
+            <div class="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition">
+                <div class="flex items-start space-x-3">
+                    <span class="text-2xl">📱</span>
+                    <div class="flex-1">
+                        <p class="text-gray-900" x-text="post.text || post['最終投稿'] || ''"></p>
+                        <div class="mt-2 flex items-center space-x-3 text-xs text-gray-500">
+                            <span x-show="post.similarity_score">
+                                類似度: <span class="font-medium" x-text="(post.similarity_score * 100).toFixed(1) + '%'"></span>
+                            </span>
+                            <span x-show="post['投稿日'] || post.date">
+                                <span x-text="post['投稿日'] || post.date"></span>
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </template>
+    </div>
+
+    <div class="mt-4 text-sm text-gray-500 text-center" x-show="similarPosts.length > 3">
+        他 <span x-text="similarPosts.length - 3"></span> 件の類似投稿
+    </div>
+</div>

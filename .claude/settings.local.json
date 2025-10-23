@@ -1,0 +1,32 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//c/Users/yuuik/**)",
+      "Bash(python:*)",
+      "Bash(git branch:*)",
+      "Bash(git add:*)"
+    ]
+  },
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "firecrawl",
+    "github",
+    "playwright",
+    "yahoo-ds-insight",
+    "analytics",
+    "time",
+    "perplexity-ask",
+    "o3pro",
+    "context7",
+    "mcp-youtube",
+    "serpapi",
+    "brightdata",
+    "perplexity-deepsearch",
+    "tavily-remote",
+    "pythonanywhere-postgres",
+    "pythonanywhere-postgres-direct",
+    "chrome-devtools",
+    "mcp-sample"
+  ],
+  "outputStyle": "Explanatory"
+}

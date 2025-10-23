@@ -1,0 +1,183 @@
+<div class="bg-white rounded-lg shadow p-6">
+    <div class="text-center mb-6">
+        <h2 class="text-2xl font-bold text-gray-900 mb-2">
+            どちらの投稿が良いですか？
+        </h2>
+        <p class="text-gray-600">気に入った方を選択してください（ラウンド <span x-text="round"></span>）</p>
+    </div>
+
+    <!-- 使用した素材セクション（折りたたみ可能） -->
+    <div x-data="{ showMaterials: false }" class="mb-6 border rounded-lg bg-gray-50">
+        <button @click="showMaterials = !showMaterials"
+                class="w-full px-4 py-3 flex items-center justify-between hover:bg-gray-100 transition">
+            <div class="flex items-center space-x-2">
+                <span class="text-lg">📚</span>
+                <span class="font-semibold text-gray-900">使用した素材を確認</span>
+            </div>
+            <svg class="w-5 h-5 text-gray-600 transition-transform"
+                 :class="showMaterials ? 'rotate-180' : ''"
+                 fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+            </svg>
+        </button>
+
+        <div x-show="showMaterials"
+             x-transition:enter="transition ease-out duration-200"
+             x-transition:enter-start="opacity-0 transform scale-95"
+             x-transition:enter-end="opacity-100 transform scale-100"
+             x-transition:leave="transition ease-in duration-150"
+             x-transition:leave-start="opacity-100 transform scale-100"
+             x-transition:leave-end="opacity-0 transform scale-95"
+             class="px-4 pb-4 space-y-4">
+            <!-- 入力情報 -->
+            <div class="bg-white rounded-lg p-4 border">
+                <h3 class="font-semibold text-gray-900 mb-2 flex items-center">
+                    <span class="mr-2">📝</span> 入力情報
+                </h3>
+                <div class="space-y-2 text-sm">
+                    <div><span class="text-gray-600">日付:</span> <span x-text="form.date"></span></div>
+                    <div><span class="text-gray-600">URL:</span> <span class="text-blue-600 break-all" x-text="form.url"></span></div>
+                    <div><span class="text-gray-600">決定事項:</span> <span x-text="form.decided"></span></div>
+                    <div x-show="form.anniversary"><span class="text-gray-600">記念日:</span> <span x-text="form.anniversary"></span></div>
+                    <div x-show="form.remarks"><span class="text-gray-600">備考:</span> <span x-text="form.remarks"></span></div>
+                </div>
+            </div>
+
+            <!-- 類似投稿 -->
+            <div class="bg-white rounded-lg p-4 border" x-show="similarPosts && similarPosts.length > 0">
+                <h3 class="font-semibold text-gray-900 mb-3 flex items-center">
+                    <span class="mr-2">📊</span> 参考にした過去投稿（<span x-text="similarPosts.length"></span>件）
+                </h3>
+                <div class="space-y-3">
+                    <template x-for="(post, index) in similarPosts.slice(0, 3)" :key="index">
+                        <div class="bg-gray-50 rounded p-3">
+                            <div class="flex items-center justify-between mb-2">
+                                <span class="text-xs font-medium text-primary">過去投稿 #<span x-text="index + 1"></span></span>
+                                <span class="text-xs text-gray-600" x-show="post.similarity_score">
+                                    類似度: <span x-text="(post.similarity_score * 100).toFixed(0)"></span>%
+                                </span>
+                            </div>
+                            <p class="text-sm text-gray-900 whitespace-pre-wrap" x-text="post.text || post.最終投稿 || ''"></p>
+                            <div class="mt-2 text-xs text-gray-500" x-show="post.投稿日 || post.date">
+                                投稿日: <span x-text="post.投稿日 || post.date"></span>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+            </div>
+
+            <!-- Pinecone結果（現在は非表示） -->
+            <div class="bg-white rounded-lg p-4 border" x-show="pineconeResults && pineconeResults.length > 0">
+                <h3 class="font-semibold text-gray-900 mb-3 flex items-center">
+                    <span class="mr-2">🔍</span> 商品情報（Pinecone）
+                </h3>
+                <p class="text-sm text-gray-600">※ 現在は無効化されています</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tinder Cards -->
+    <div class="grid md:grid-cols-2 gap-6 mb-6">
+        <!-- Post A -->
+        <div class="tinder-card border-2 rounded-lg p-6 cursor-pointer"
+             :class="selectedSide === 'A' ? 'selected border-primary' : 'border-gray-300'"
+             @click="selectPost('A')">
+            <div class="flex items-start justify-between mb-4">
+                <div class="flex items-center space-x-2">
+                    <span class="text-3xl">📱</span>
+                    <span class="text-lg font-semibold text-gray-900">案A</span>
+                </div>
+                <div class="flex items-center" x-show="selectedSide === 'A'">
+                    <svg class="w-6 h-6 text-primary" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+                    </svg>
+                </div>
+            </div>
+
+            <div class="mb-4">
+                <p class="text-gray-900 text-lg leading-relaxed whitespace-pre-wrap" x-text="postA?.text || ''"></p>
+            </div>
+
+            <div class="flex items-center justify-between text-sm">
+                <div class="flex items-center space-x-3">
+                    <span class="text-gray-600">
+                        <span x-text="postA?.character_count || 0"></span> 文字
+                    </span>
+                    <span class="flex items-center" :class="postA?.is_valid ? 'text-green-600' : 'text-red-600'">
+                        <svg class="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+                        </svg>
+                        <span x-text="postA?.is_valid ? '文字数OK' : '文字数オーバー'"></span>
+                    </span>
+                </div>
+                <button @click.stop="selectPost('A')"
+                        class="px-4 py-2 rounded-lg transition"
+                        :class="selectedSide === 'A' ? 'bg-primary text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'">
+                    👈 選択
+                </button>
+            </div>
+        </div>
+
+        <!-- Post B -->
+        <div class="tinder-card border-2 rounded-lg p-6 cursor-pointer"
+             :class="selectedSide === 'B' ? 'selected border-primary' : 'border-gray-300'"
+             @click="selectPost('B')">
+            <div class="flex items-start justify-between mb-4">
+                <div class="flex items-center space-x-2">
+                    <span class="text-3xl">📱</span>
+                    <span class="text-lg font-semibold text-gray-900">案B</span>
+                </div>
+                <div class="flex items-center" x-show="selectedSide === 'B'">
+                    <svg class="w-6 h-6 text-primary" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+                    </svg>
+                </div>
+            </div>
+
+            <div class="mb-4">
+                <p class="text-gray-900 text-lg leading-relaxed whitespace-pre-wrap" x-text="postB?.text || ''"></p>
+            </div>
+
+            <div class="flex items-center justify-between text-sm">
+                <div class="flex items-center space-x-3">
+                    <span class="text-gray-600">
+                        <span x-text="postB?.character_count || 0"></span> 文字
+                    </span>
+                    <span class="flex items-center" :class="postB?.is_valid ? 'text-green-600' : 'text-red-600'">
+                        <svg class="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+                        </svg>
+                        <span x-text="postB?.is_valid ? '文字数OK' : '文字数オーバー'"></span>
+                    </span>
+                </div>
+                <button @click.stop="selectPost('B')"
+                        class="px-4 py-2 rounded-lg transition"
+                        :class="selectedSide === 'B' ? 'bg-primary text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'">
+                    👈 選択
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Action Buttons -->
+    <div class="space-y-4">
+        <div class="flex space-x-4" x-show="selectedSide">
+            <button @click="proceedToRefinement()"
+                    class="flex-1 px-6 py-3 bg-secondary text-white rounded-lg hover:bg-green-600 transition font-medium">
+                🎨 改善する（次のラウンド）
+            </button>
+            <button @click="finalizeSelection()"
+                    class="flex-1 px-6 py-3 bg-primary text-white rounded-lg hover:bg-blue-600 transition font-medium">
+                ✅ これで確定
+            </button>
+        </div>
+
+        <!-- 戻るボタン -->
+        <div class="flex justify-center">
+            <button @click="goBack()"
+                    class="px-6 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition text-sm">
+                ← 前に戻る
+            </button>
+        </div>
+    </div>
+</div>

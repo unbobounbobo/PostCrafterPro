@@ -1,0 +1,162 @@
+{% extends "base.html" %}
+
+{% block title %}投稿作成 - PostCrafterPro{% endblock %}
+
+{% block content %}
+<div x-data="postCreator()" x-cloak class="space-y-6">
+
+    <!-- Progress Indicator -->
+    <div class="bg-white rounded-lg shadow p-6">
+        <div class="flex items-center justify-between mb-4">
+            <h2 class="text-lg font-semibold text-gray-900">進捗状況</h2>
+            <span class="text-sm text-gray-500" x-text="getProgressText()"></span>
+        </div>
+        <div class="flex items-center space-x-2">
+            <div class="flex-1 bg-gray-200 rounded-full h-2">
+                <div class="bg-primary rounded-full h-2 transition-all duration-500"
+                     :style="`width: ${progress}%`"></div>
+            </div>
+            <span class="text-sm font-medium text-gray-700" x-text="progress + '%'"></span>
+        </div>
+    </div>
+
+    <!-- Step 1: Input Form -->
+    <div x-show="step === 1" class="fade-in">
+        {% include 'components/input_form.html' %}
+    </div>
+
+    <!-- Step 2: Context Loading -->
+    <div x-show="step === 2" class="fade-in">
+        <div class="bg-white rounded-lg shadow p-8 text-center">
+            <div class="mb-4 flex justify-center">
+                <svg class="w-16 h-16 text-primary spin-animation" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                </svg>
+            </div>
+            <h3 class="text-xl font-semibold text-gray-900 mb-2">情報を収集中...</h3>
+            <p class="text-gray-600">過去投稿から関連情報を検索しています</p>
+        </div>
+    </div>
+
+    <!-- Step 3: Context Results -->
+    <div x-show="step === 3" class="fade-in space-y-6">
+        <!-- Pinecone temporarily disabled -->
+        <!-- {% include 'components/pinecone_results.html' %} -->
+        {% include 'components/similar_posts.html' %}
+
+        <div class="flex justify-center space-x-4">
+            <button @click="goBack()"
+                    class="px-6 py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition font-medium">
+                ← 戻る
+            </button>
+            <button @click="generateInitialPosts()"
+                    class="px-8 py-3 bg-primary text-white rounded-lg hover:bg-blue-600 transition font-medium shadow-lg">
+                投稿案を生成する 🚀
+            </button>
+        </div>
+    </div>
+
+    <!-- Step 4: Generating Posts -->
+    <div x-show="step === 4" class="fade-in">
+        <div class="bg-white rounded-lg shadow p-8 text-center">
+            <div class="mb-4 flex justify-center">
+                <svg class="w-16 h-16 text-secondary spin-animation" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                </svg>
+            </div>
+            <h3 class="text-xl font-semibold text-gray-900 mb-2">AI が投稿を生成中...</h3>
+            <p class="text-gray-600">Claude 4.5が2つの投稿案を作成しています</p>
+            <p class="text-sm text-gray-500 mt-2">※ 通常30秒〜1分程度かかります</p>
+        </div>
+    </div>
+
+    <!-- Step 5: Tinder View -->
+    <div x-show="step === 5" class="fade-in">
+        {% include 'components/tinder_view.html' %}
+    </div>
+
+    <!-- Step 6: Refinement (Optional) -->
+    <div x-show="step === 6" class="fade-in">
+        {% include 'components/refinement.html' %}
+    </div>
+
+    <!-- Step 7: Final Confirmation -->
+    <div x-show="step === 7" class="fade-in">
+        <div class="bg-white rounded-lg shadow p-8">
+            <div class="text-center mb-6">
+                <div class="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <svg class="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                    </svg>
+                </div>
+                <h3 class="text-2xl font-bold text-gray-900 mb-2">投稿完成！</h3>
+                <p class="text-gray-600">最終投稿をGoogle Sheetsに保存します</p>
+            </div>
+
+            <div class="bg-gray-50 rounded-lg p-6 mb-6">
+                <div class="flex items-start space-x-3">
+                    <span class="text-4xl">📱</span>
+                    <div class="flex-1">
+                        <p class="text-lg text-gray-900 mb-2 whitespace-pre-wrap" x-text="finalPost"></p>
+                        <div class="flex items-center space-x-4 text-sm text-gray-600">
+                            <span x-text="finalPostLength + '文字'"></span>
+                            <span class="flex items-center">
+                                <svg class="w-4 h-4 mr-1" :class="finalPostValid ? 'text-green-600' : 'text-red-600'" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+                                </svg>
+                                <span x-text="finalPostValid ? '文字数OK' : '文字数オーバー'"></span>
+                            </span>
+                            <span x-text="'ラウンド数: ' + round"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="space-y-4">
+                <div class="flex space-x-4">
+                    <button @click="publishPost()"
+                            :disabled="publishing"
+                            class="flex-1 px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition font-medium disabled:opacity-50">
+                        <span x-show="!publishing">✅ Google Sheetsに保存</span>
+                        <span x-show="publishing">保存中...</span>
+                    </button>
+                    <button @click="restart()"
+                            class="px-6 py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition">
+                        🔄 最初からやり直す
+                    </button>
+                </div>
+
+                <!-- 戻るボタン -->
+                <div class="flex justify-center">
+                    <button @click="goBack()"
+                            class="px-6 py-2 bg-gray-400 text-white rounded-lg hover:bg-gray-500 transition text-sm">
+                        ← 前に戻る
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Success Message -->
+    <div x-show="step === 8" class="fade-in">
+        <div class="bg-white rounded-lg shadow p-8 text-center">
+            <div class="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                <svg class="w-10 h-10 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+            </div>
+            <h3 class="text-2xl font-bold text-gray-900 mb-2">保存完了！🎉</h3>
+            <p class="text-gray-600 mb-6">投稿がGoogle Sheetsに保存されました</p>
+
+            <button @click="restart()"
+                    class="px-8 py-3 bg-primary text-white rounded-lg hover:bg-blue-600 transition font-medium">
+                新しい投稿を作成する
+            </button>
+        </div>
+    </div>
+
+</div>
+
+<!-- Alpine.js Component -->
+<script src="{{ url_for('static', filename='js/app.js') }}"></script>
+{% endblock %}

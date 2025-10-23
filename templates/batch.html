@@ -1,0 +1,530 @@
+{% extends "base.html" %}
+
+{% block title %}バッチ処理 - PostCrafterPro{% endblock %}
+
+{% block content %}
+<div x-data="batchProcessor()" x-cloak class="space-y-6">
+
+    <!-- Header -->
+    <div class="bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg shadow-lg p-6 text-white">
+        <h1 class="text-3xl font-bold mb-2">📦 バッチ処理</h1>
+        <p class="text-blue-100">複数の投稿を一括で生成・処理します</p>
+    </div>
+
+    <!-- Progress Indicator -->
+    <div class="bg-white rounded-lg shadow p-6" x-show="processing">
+        <div class="flex items-center justify-between mb-4">
+            <h2 class="text-lg font-semibold text-gray-900">処理進捗</h2>
+            <span class="text-sm text-gray-500" x-text="`${processedCount} / ${totalCount} 件完了`"></span>
+        </div>
+        <div class="flex items-center space-x-2">
+            <div class="flex-1 bg-gray-200 rounded-full h-2">
+                <div class="bg-primary rounded-full h-2 transition-all duration-500"
+                     :style="`width: ${progressPercentage}%`"></div>
+            </div>
+            <span class="text-sm font-medium text-gray-700" x-text="progressPercentage + '%'"></span>
+        </div>
+    </div>
+
+    <!-- Step 1: Configuration -->
+    <div x-show="step === 1" class="fade-in">
+        <div class="bg-white rounded-lg shadow p-8">
+            <h2 class="text-2xl font-bold text-gray-900 mb-6">処理設定</h2>
+
+            <div class="space-y-6">
+                <!-- Data Source -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                        データソース
+                    </label>
+                    <select x-model="dataSource"
+                            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent">
+                        <option value="sheet">Google Sheets（未完成投稿）</option>
+                        <option value="csv">CSVファイル</option>
+                        <option value="manual">手動入力</option>
+                    </select>
+                </div>
+
+                <!-- Google Sheets Source (if selected) -->
+                <div x-show="dataSource === 'sheet'" class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">
+                            シート名
+                        </label>
+                        <input type="text"
+                               x-model="sheetName"
+                               placeholder="SNS投稿_下書き"
+                               class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent">
+                    </div>
+                    <div class="flex items-center space-x-4">
+                        <div class="flex-1">
+                            <label class="block text-sm font-medium text-gray-700 mb-2">
+                                開始行
+                            </label>
+                            <input type="number"
+                                   x-model="startRow"
+                                   min="2"
+                                   class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent">
+                        </div>
+                        <div class="flex-1">
+                            <label class="block text-sm font-medium text-gray-700 mb-2">
+                                終了行（0=全件）
+                            </label>
+                            <input type="number"
+                                   x-model="endRow"
+                                   min="0"
+                                   class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- CSV Upload (if selected) -->
+                <div x-show="dataSource === 'csv'" class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">
+                            CSVファイル
+                        </label>
+                        <input type="file"
+                               accept=".csv"
+                               @change="handleCsvUpload"
+                               class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent">
+                    </div>
+                    <p class="text-sm text-gray-500">
+                        ※ CSV形式: 投稿日,URL,決定事項,記念日,備考
+                    </p>
+                </div>
+
+                <!-- Processing Options -->
+                <div class="pt-4 border-t">
+                    <h3 class="text-lg font-semibold text-gray-900 mb-4">処理オプション</h3>
+
+                    <div class="space-y-3">
+                        <label class="flex items-center space-x-3">
+                            <input type="checkbox" x-model="options.autoSave" class="form-checkbox h-5 w-5 text-primary">
+                            <span class="text-gray-700">自動保存（完成した投稿を自動でSheetsに保存）</span>
+                        </label>
+
+                        <label class="flex items-center space-x-3">
+                            <input type="checkbox" x-model="options.skipErrors" class="form-checkbox h-5 w-5 text-primary">
+                            <span class="text-gray-700">エラーをスキップ（エラー時に次の投稿へ）</span>
+                        </label>
+
+                        <label class="flex items-center space-x-3">
+                            <input type="checkbox" x-model="options.pauseBetween" class="form-checkbox h-5 w-5 text-primary">
+                            <span class="text-gray-700">投稿間に待機時間（API制限対策）</span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="mt-8 flex justify-center space-x-4">
+                <button @click="loadData()"
+                        class="px-8 py-3 bg-primary text-white rounded-lg hover:bg-blue-600 transition font-medium shadow-lg">
+                    データを読み込む 📂
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Step 2: Loading Data -->
+    <div x-show="step === 2" class="fade-in">
+        <div class="bg-white rounded-lg shadow p-8 text-center">
+            <div class="mb-4 flex justify-center">
+                <svg class="w-16 h-16 text-primary spin-animation" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                </svg>
+            </div>
+            <h3 class="text-xl font-semibold text-gray-900 mb-2">データを読み込み中...</h3>
+            <p class="text-gray-600">Google Sheetsからデータを取得しています</p>
+        </div>
+    </div>
+
+    <!-- Step 3: Data Preview & Confirm -->
+    <div x-show="step === 3" class="fade-in">
+        <div class="bg-white rounded-lg shadow p-8">
+            <h2 class="text-2xl font-bold text-gray-900 mb-6">データ確認</h2>
+
+            <div class="mb-6">
+                <p class="text-gray-600">
+                    <span class="font-semibold text-gray-900" x-text="posts.length"></span> 件の投稿データを読み込みました
+                </p>
+            </div>
+
+            <!-- Data Table -->
+            <div class="overflow-x-auto mb-6">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">No.</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">投稿日</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">決定事項</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">記念日</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">URL</th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200">
+                        <template x-for="(post, index) in posts" :key="index">
+                            <tr>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900" x-text="index + 1"></td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900" x-text="post.date"></td>
+                                <td class="px-6 py-4 text-sm text-gray-900" x-text="post.decided"></td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500" x-text="post.anniversary || '-'"></td>
+                                <td class="px-6 py-4 text-sm text-blue-600 truncate max-w-xs" x-text="post.url"></td>
+                            </tr>
+                        </template>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="flex justify-center space-x-4">
+                <button @click="goBack()"
+                        class="px-6 py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition font-medium">
+                    ← 戻る
+                </button>
+                <button @click="startBatchProcessing()"
+                        class="px-8 py-3 bg-primary text-white rounded-lg hover:bg-blue-600 transition font-medium shadow-lg">
+                    バッチ処理を開始 🚀
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Step 4: Processing -->
+    <div x-show="step === 4" class="fade-in">
+        <div class="bg-white rounded-lg shadow p-8">
+            <h2 class="text-2xl font-bold text-gray-900 mb-6">処理中...</h2>
+
+            <!-- Current Processing Item -->
+            <div class="bg-blue-50 rounded-lg p-6 mb-6">
+                <div class="flex items-center space-x-3 mb-3">
+                    <div class="w-8 h-8 bg-primary rounded-full flex items-center justify-center">
+                        <svg class="w-5 h-5 text-white spin-animation" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                        </svg>
+                    </div>
+                    <span class="text-lg font-semibold text-gray-900" x-text="`処理中: ${processedCount + 1} / ${totalCount}`"></span>
+                </div>
+                <div class="text-sm text-gray-600" x-show="currentItem">
+                    <p><strong>投稿日:</strong> <span x-text="currentItem?.date"></span></p>
+                    <p><strong>決定事項:</strong> <span x-text="currentItem?.decided"></span></p>
+                </div>
+            </div>
+
+            <!-- Results Table -->
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">No.</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">投稿日</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ステータス</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">生成された投稿</th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200">
+                        <template x-for="(result, index) in results" :key="index">
+                            <tr>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900" x-text="index + 1"></td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900" x-text="result.date"></td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm">
+                                    <span x-show="result.status === 'success'" class="px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs">✅ 成功</span>
+                                    <span x-show="result.status === 'error'" class="px-2 py-1 bg-red-100 text-red-800 rounded-full text-xs">❌ エラー</span>
+                                    <span x-show="result.status === 'processing'" class="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs">⏳ 処理中</span>
+                                </td>
+                                <td class="px-6 py-4 text-sm text-gray-600 max-w-md truncate" x-text="result.post || result.error"></td>
+                            </tr>
+                        </template>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Step 5: Complete -->
+    <div x-show="step === 5" class="fade-in">
+        <div class="bg-white rounded-lg shadow p-8">
+            <div class="text-center mb-6">
+                <div class="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <svg class="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                    </svg>
+                </div>
+                <h3 class="text-2xl font-bold text-gray-900 mb-2">バッチ処理完了！</h3>
+                <p class="text-gray-600" x-text="`${successCount} 件成功、${errorCount} 件エラー`"></p>
+            </div>
+
+            <!-- Summary -->
+            <div class="grid grid-cols-3 gap-4 mb-6">
+                <div class="bg-blue-50 rounded-lg p-4 text-center">
+                    <p class="text-3xl font-bold text-blue-600" x-text="totalCount"></p>
+                    <p class="text-sm text-gray-600">合計</p>
+                </div>
+                <div class="bg-green-50 rounded-lg p-4 text-center">
+                    <p class="text-3xl font-bold text-green-600" x-text="successCount"></p>
+                    <p class="text-sm text-gray-600">成功</p>
+                </div>
+                <div class="bg-red-50 rounded-lg p-4 text-center">
+                    <p class="text-3xl font-bold text-red-600" x-text="errorCount"></p>
+                    <p class="text-sm text-gray-600">エラー</p>
+                </div>
+            </div>
+
+            <!-- Results Table -->
+            <div class="overflow-x-auto mb-6">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">No.</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">投稿日</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ステータス</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">生成された投稿</th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200">
+                        <template x-for="(result, index) in results" :key="index">
+                            <tr>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900" x-text="index + 1"></td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900" x-text="result.date"></td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm">
+                                    <span x-show="result.status === 'success'" class="px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs">✅ 成功</span>
+                                    <span x-show="result.status === 'error'" class="px-2 py-1 bg-red-100 text-red-800 rounded-full text-xs">❌ エラー</span>
+                                </td>
+                                <td class="px-6 py-4 text-sm text-gray-600 whitespace-pre-wrap" x-text="result.post || result.error"></td>
+                            </tr>
+                        </template>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="flex justify-center space-x-4">
+                <button @click="exportResults()"
+                        class="px-6 py-3 bg-green-500 text-white rounded-lg hover:bg-green-600 transition font-medium">
+                    結果をエクスポート 📥
+                </button>
+                <button @click="resetBatch()"
+                        class="px-6 py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition font-medium">
+                    最初から ↻
+                </button>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<script>
+function batchProcessor() {
+    return {
+        step: 1,
+        processing: false,
+        dataSource: 'sheet',
+        sheetName: 'SNS投稿_下書き',
+        startRow: 2,
+        endRow: 0,
+
+        options: {
+            autoSave: false,
+            skipErrors: true,
+            pauseBetween: true
+        },
+
+        posts: [],
+        results: [],
+        currentItem: null,
+
+        processedCount: 0,
+        totalCount: 0,
+        successCount: 0,
+        errorCount: 0,
+
+        get progressPercentage() {
+            return this.totalCount > 0 ? Math.round((this.processedCount / this.totalCount) * 100) : 0;
+        },
+
+        async loadData() {
+            this.step = 2;
+
+            try {
+                const response = await fetch('/api/batch/load', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        source: this.dataSource,
+                        sheet_name: this.sheetName,
+                        start_row: parseInt(this.startRow),
+                        end_row: parseInt(this.endRow)
+                    })
+                });
+
+                const data = await response.json();
+
+                if (!data.success) {
+                    throw new Error(data.error || 'データの読み込みに失敗しました');
+                }
+
+                this.posts = data.posts;
+                this.totalCount = data.count;
+
+                if (this.totalCount === 0) {
+                    alert('処理対象の投稿が見つかりませんでした。\n\n下書きシートに未完成の投稿があることを確認してください。');
+                    this.step = 1;
+                    return;
+                }
+
+                this.step = 3;
+
+            } catch (error) {
+                console.error('Error loading data:', error);
+                alert('データの読み込みに失敗しました:\n' + error.message);
+                this.step = 1;
+            }
+        },
+
+        async startBatchProcessing() {
+            this.step = 4;
+            this.processing = true;
+            this.results = [];
+            this.processedCount = 0;
+            this.successCount = 0;
+            this.errorCount = 0;
+
+            for (let i = 0; i < this.posts.length; i++) {
+                const post = this.posts[i];
+                this.currentItem = post;
+
+                // Mark as processing
+                this.results.push({
+                    ...post,
+                    status: 'processing',
+                    post: ''
+                });
+
+                try {
+                    console.log(`Processing post ${i + 1}/${this.posts.length}:`, post);
+
+                    const response = await fetch('/api/batch/process', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            post: post,
+                            auto_save: this.options.autoSave,
+                            select_first: true  // Automatically select first post
+                        })
+                    });
+
+                    const data = await response.json();
+
+                    if (!data.success) {
+                        throw new Error(data.error || '投稿生成に失敗しました');
+                    }
+
+                    // Update result with success
+                    this.results[i] = {
+                        ...post,
+                        status: 'success',
+                        post: data.selected || data.post_a?.text || '投稿生成成功'
+                    };
+
+                    this.successCount++;
+
+                } catch (error) {
+                    console.error(`Error processing post ${i + 1}:`, error);
+
+                    // Update result with error
+                    this.results[i] = {
+                        ...post,
+                        status: 'error',
+                        error: error.message
+                    };
+
+                    this.errorCount++;
+
+                    if (!this.options.skipErrors) {
+                        break;
+                    }
+                }
+
+                this.processedCount++;
+
+                // Pause between requests if enabled (to avoid API rate limits)
+                if (this.options.pauseBetween && i < this.posts.length - 1) {
+                    await new Promise(resolve => setTimeout(resolve, 3000));
+                }
+            }
+
+            this.processing = false;
+            this.step = 5;
+        },
+
+        handleCsvUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            // TODO: Implement CSV parsing
+            alert('CSV読み込み機能は実装予定です');
+        },
+
+        async exportResults() {
+            try {
+                const response = await fetch('/api/batch/export', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        results: this.results
+                    })
+                });
+
+                const data = await response.json();
+
+                if (!data.success) {
+                    throw new Error(data.error || 'エクスポートに失敗しました');
+                }
+
+                // Create download link
+                const blob = new Blob([data.csv], { type: 'text/csv;charset=utf-8;' });
+                const link = document.createElement('a');
+                const url = URL.createObjectURL(blob);
+
+                link.setAttribute('href', url);
+                link.setAttribute('download', data.filename);
+                link.style.visibility = 'hidden';
+
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+
+                alert('結果をCSVファイルとしてダウンロードしました');
+
+            } catch (error) {
+                console.error('Export error:', error);
+                alert('エクスポートに失敗しました:\n' + error.message);
+            }
+        },
+
+        resetBatch() {
+            this.step = 1;
+            this.posts = [];
+            this.results = [];
+            this.processedCount = 0;
+            this.totalCount = 0;
+            this.successCount = 0;
+            this.errorCount = 0;
+        },
+
+        goBack() {
+            if (this.step > 1) {
+                this.step--;
+            }
+        }
+    }
+}
+</script>
+{% endblock %}
