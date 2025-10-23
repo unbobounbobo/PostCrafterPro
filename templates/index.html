@@ -98,8 +98,8 @@
                     <span class="text-4xl">📱</span>
                     <div class="flex-1">
                         <p class="text-lg text-gray-900 mb-2 whitespace-pre-wrap cursor-pointer hover:bg-gray-100 rounded p-2 transition-colors"
-                           x-text="finalPost"
-                           @click="copyToClipboard(finalPost)"
+                           x-text="finalPost?.text || ''"
+                           @click="copyToClipboard(finalPost?.text || '')"
                            title="クリックでコピー"></p>
                         <div class="flex items-center space-x-4 text-sm text-gray-600">
                             <span x-text="finalPostLength + '文字'"></span>
